@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Open gui.js into a named tab</title>
+<style>
+  body{font-family:Inter, system-ui, -apple-system, Roboto, Arial; padding:20px; background:#0b1220; color:#e6f0f3}
+  .card{background:#071226;padding:18px;border-radius:10px;max-width:900px;margin:0 auto}
+  input,button{padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
+  button.primary{background:#6ee7b7;border:none;color:#04211b}
+  pre{white-space:pre-wrap;background:#02111a;padding:12px;border-radius:8px;overflow:auto}
+  label{display:block;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Open <code>gui.js</code> into a named tab</h2>
+  <p>This tool reads a local <code>gui.js</code> file (your uploaded file: <em>gui.js</em>) and opens it inside a new tab (or reuses a named tab).</p>
+
+  <label>Select your <code>gui.js</code> file:
+    <input id="fileInput" type="file" accept=".js,text/javascript" />
+  </label>
+
+  <label>Tab name (leave empty to open a brand new tab):
+    <input id="tabName" placeholder="e.g. my-gui-tab" />
+  </label>
+
+  <div style="margin-top:10px">
+    <button id="openBtn" class="primary">Open gui.js in tab</button>
+    <button id="downloadBtn">Download page that runs gui.js</button>
+  </div>
+
+  <h3 style="margin-top:14px">How to use</h3>
+  <ol>
+    <li>Save this file as <code>open-gui-js.html</code> and open it in your browser.</li>
+    <li>Click <strong>Choose file</strong> and select your <code>gui.js</code> (the one you uploaded: :contentReference[oaicite:1]{index=1}).</li>
+    <li>Optionally enter a tab name to reuse the same tab later (entering the same name opens the same tab again).</li>
+    <li>Click <strong>Open gui.js in tab</strong>. A new tab (or named tab) will open and the script will be injected and executed there.</li>
+  </ol>
+
+  <p><strong>Important:</strong> If the script expects to run on a particular site (for example, it references elements on play.blooket.com), it will only work if that target DOM exists. This HTML injects the script into a fresh page — if the script requires the target site's DOM/state, you'll need to run it on that site instead (or open that site in the named tab and then inject the script into it if same-origin policies allow it).</p>
+</div>
+
+<script>
+function safeInjectScriptContent(winDoc, code) {
+  // Avoid breaking out of the script tag if the JS contains "</script>"
+  const safeCode = code.replace(/<\/script>/gi, '<\\/script>');
+  return `<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>gui.js — injected</title></head>
+<body>
+<script>
+try {
+${safeCode}
+} catch (e) {
+  console.error(e);
+  document.body.innerHTML = '<pre style="white-space:pre-wrap;color:#900">Error executing gui.js:\\n' + (e && e.stack ? e.stack : e) + '</pre>';
+}
+</` + `script>
+</body>
+</html>`;
+}
+
+document.getElementById('openBtn').addEventListener('click', () => {
+  const input = document.getElementById('fileInput');
+  if (!input.files || input.files.length === 0) return alert('Please choose your gui.js file first.');
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = () => {
+    const tabName = (document.getElementById('tabName').value || '').trim() || '_blank';
+    const popup = window.open('', tabName);
+    if (!popup) return alert('Popup blocked — allow pop-ups for this page and try again.');
+    const page = safeInjectScriptContent(popup.document, reader.result);
+    // Write into the opened tab
+    popup.document.open();
+    popup.document.write(page);
+    popup.document.close();
+    popup.focus();
+  };
+  reader.onerror = () => alert('Error reading file.');
+  reader.readAsText(file);
+});
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  // produce a simple downloadable HTML that when opened will prompt user to load gui.js (same behavior)
+  const template = document.documentElement.outerHTML;
+  const blob = new Blob([template], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'open-gui-js.html';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
